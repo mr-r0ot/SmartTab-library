@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>SmartTab Report — {{ model_name }}</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 2rem; max-width: 1100px; margin-inline: auto; background: #0b0e14; color: #e6e6e6; }
+  h1 { font-size: 1.6rem; margin-bottom: 0.2rem; }
+  .subtitle { color: #9aa4b2; margin-bottom: 2rem; }
+  section { margin-bottom: 2.5rem; }
+  h2 { font-size: 1.15rem; border-bottom: 1px solid #2a2f3a; padding-bottom: 0.4rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
+  th, td { text-align: left; padding: 0.4rem 0.7rem; border-bottom: 1px solid #1e232c; font-size: 0.92rem; }
+  th { color: #9aa4b2; font-weight: 600; }
+  .badge { display: inline-block; background: #1e293b; color: #93c5fd; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; margin-right: 0.4rem; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+  .warn { color: #fbbf24; }
+  .chart { margin-top: 1rem; }
+  footer { color: #6b7280; font-size: 0.8rem; margin-top: 3rem; }
+  ul { margin: 0.4rem 0 0 1.2rem; padding: 0; }
+  code { background: #1e232c; padding: 0.1rem 0.4rem; border-radius: 4px; }
+</style>
+<script type="text/javascript">{{ plotlyjs_library | safe }}</script>
+</head>
+<body>
+  <h1>SmartTab Report</h1>
+  <div class="subtitle">Generated {{ generated_at }} · smarttab v{{ library_version }} · also saved as <code>report.json</code> and PNGs under <code>charts/</code></div>
+
+  <section>
+    <h2>Summary</h2>
+    <span class="badge">task: {{ task_type }}</span>
+    <span class="badge">model: {{ model_name }}</span>
+    <span class="badge">samples: {{ dataset_profile.n_samples }}</span>
+    <span class="badge">features: {{ dataset_profile.n_features }} &rarr; {{ n_final_features }}</span>
+    {% if task_type == "binary" %}<span class="badge">decision threshold: {{ "%.2f"|format(decision_threshold) }} (objective: {{ objective }})</span>{% endif %}
+    {% if task_type == "multiclass" %}<span class="badge">reject threshold: {{ "%.2f"|format(reject_threshold) }} (objective: {{ objective }})</span>{% endif %}
+    {% if task_type == "multilabel" and per_label_thresholds %}<span class="badge">per-label thresholds (objective: {{ objective }})</span>{% endif %}
+    {% if multi_threshold_ensemble %}<span class="badge">multi-threshold ensemble: {{ threshold_ladder | length }} levels</span>{% endif %}
+    {% if dataset_profile.is_imbalanced %}<span class="badge warn">imbalanced target</span>{% endif %}
+  </section>
+
+  <section class="grid-2">
+    <div>
+      <h2>Dataset Summary</h2>
+      <table>
+        <tr><th>Target column</th><td>{{ dataset_profile.target_column }}</td></tr>
+        <tr><th>Task type</th><td>{{ task_type }}</td></tr>
+        <tr><th>Samples</th><td>{{ dataset_profile.n_samples }}</td></tr>
+        <tr><th>Raw features</th><td>{{ dataset_profile.n_features }}</td></tr>
+        <tr><th>Duplicate rows</th><td>{{ dataset_profile.duplicate_row_count }}</td></tr>
+        <tr><th>Constant columns dropped</th><td>{{ dataset_profile.constant_columns | length }}</td></tr>
+        <tr><th>ID-like columns dropped</th><td>{{ dataset_profile.id_like_columns | length }}</td></tr>
+        <tr><th>Datetime columns</th><td>{{ dataset_profile.datetime_columns | length }}</td></tr>
+        <tr><th>Text columns</th><td>{{ dataset_profile.text_columns | length }}</td></tr>
+        <tr><th>Columns with missing values</th><td>{{ dataset_profile.missing_report | length }}</td></tr>
+        {% if dataset_profile.class_distribution %}
+        <tr><th>Class distribution</th><td>{{ dataset_profile.class_distribution }}</td></tr>
+        <tr><th>Imbalance ratio (minority/majority)</th><td>{{ "%.3f"|format(dataset_profile.class_imbalance_ratio) }}</td></tr>
+        {% endif %}
+      </table>
+      {% if dataset_profile.potential_leakage_columns %}
+      <p class="warn">Potential leakage columns flagged: {{ dataset_profile.potential_leakage_columns | join(", ") }}</p>
+      {% endif %}
+      {% if dataset_profile.outlier_columns %}
+      <p class="warn">Outliers detected in {{ dataset_profile.outlier_columns | length }} numeric column(s) (not removed by default).</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <h2>Hardware Summary</h2>
+      <table>
+        <tr><th>CPU</th><td>{{ hardware_profile.cpu.brand }}</td></tr>
+        <tr><th>Cores (physical/logical)</th><td>{{ hardware_profile.cpu.physical_cores }} / {{ hardware_profile.cpu.logical_cores }}</td></tr>
+        <tr><th>RAM (total / available)</th><td>{{ "%.1f"|format(hardware_profile.ram.total_mb/1024) }} GB / {{ "%.1f"|format(hardware_profile.ram.available_mb/1024) }} GB</td></tr>
+        <tr><th>GPU</th><td>{{ hardware_profile.gpu.name if hardware_profile.gpu.available else "not available" }}</td></tr>
+        <tr><th>Threads used</th><td>{{ resource_plan.cpu_threads }}</td></tr>
+        <tr><th>GPU used</th><td>{{ resource_plan.use_gpu }}</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Model & Hyperparameters</h2>
+    <table>
+      <tr><th>Model</th><td>{{ model_name }}</td></tr>
+      <tr><th>Primary optimization metric</th><td>{{ primary_metric }}</td></tr>
+      {% for key, value in best_params.items() %}
+      <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+      {% endfor %}
+    </table>
+    {% if task_type == "binary" %}
+    <p style="color:#9aa4b2; font-size:0.85rem; margin-top:0.75rem;">Decision threshold {{ "%.2f"|format(decision_threshold) }} was chosen by sweeping <strong>{{ objective }}</strong> on held-out data (instead of the default 0.5 cutoff).</p>
+    {% elif task_type == "multiclass" %}
+    <p style="color:#9aa4b2; font-size:0.85rem; margin-top:0.75rem;">Reject threshold {{ "%.2f"|format(reject_threshold) }} (on the top predicted class's probability) was chosen by sweeping <strong>{{ objective }}</strong> on held-out data. This only affects <code>predict()</code> when <code>multi_threshold_ensemble=True</code>; predictions below this confidence are otherwise still returned via plain argmax.</p>
+    {% elif task_type == "multilabel" and per_label_thresholds %}
+    <p style="color:#9aa4b2; font-size:0.85rem; margin-top:0.75rem;">Each label got its own decision threshold, chosen by sweeping <strong>{{ objective }}</strong> independently per label on held-out data (instead of the default 0.5 cutoff for every label):</p>
+    <table style="margin-top:0.5rem;">
+      <tr><th>label</th><th>threshold</th></tr>
+      {% for label in (class_labels or range(per_label_thresholds | length)) %}
+      <tr><td>{{ label }}</td><td>{{ "%.3f"|format(per_label_thresholds[loop.index0]) }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+    {% if ensemble_info %}
+    <h2 style="margin-top:1.5rem;">Ensemble Details</h2>
+    <table>
+      <tr><th>Strategy chosen</th><td>{{ ensemble_info.strategy }}</td></tr>
+      <tr><th>Validation score ({{ primary_metric }})</th><td>{{ "%.4f"|format(ensemble_info.validation_score) }}</td></tr>
+      {% if ensemble_info.base_scores %}
+      {% for name, score in ensemble_info.base_scores.items() %}
+      <tr><th>{{ name }} individual score</th><td>{{ "%.4f"|format(score) }}</td></tr>
+      {% endfor %}
+      {% endif %}
+      {% for name, n_est in ensemble_info.base_n_estimators.items() %}
+      <tr><th>{{ name }} n_estimators</th><td>{{ n_est }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </section>
+
+  {% if multi_threshold_ensemble and threshold_ladder and task_type == "binary" %}
+  <section>
+    <h2>Multi-Threshold Ensemble ({{ threshold_ladder | length }} confidence levels)</h2>
+    <p style="color:#9aa4b2; font-size:0.85rem;">
+      Instead of one fixed cutoff, {{ threshold_ladder | length }} thresholds spanning the recall/precision
+      trade-off were computed from the same model's probabilities — from most lenient (catches the most
+      positives, more false alarms) to strictest (fewer false alarms, may miss borderline cases).
+      <code>predict()</code> uses the objective-optimal threshold above ({{ "%.2f"|format(decision_threshold) }})
+      for the final label, and reports a confidence score for each row: the fraction of these {{ threshold_ladder | length }}
+      levels that agree with that label (1.0 = every level agrees, even the strictest; low values = a borderline call).
+    </p>
+    <table>
+      <tr>
+        <th>#</th><th>Threshold</th><th>Precision</th><th>Recall</th><th>F1</th><th>Accuracy</th><th>Predicted positive rate</th>
+      </tr>
+      {% for point in threshold_ladder %}
+      <tr>
+        <td>{{ loop.index }}{% if point.threshold == decision_threshold %} (closest to objective){% endif %}</td>
+        <td>{{ "%.3f"|format(point.threshold) }}</td>
+        <td>{{ "%.4f"|format(point.precision) }}</td>
+        <td>{{ "%.4f"|format(point.recall) }}</td>
+        <td>{{ "%.4f"|format(point.f1) }}</td>
+        <td>{{ "%.4f"|format(point.accuracy) }}</td>
+        <td>{{ "%.1f"|format(point.predicted_positive_rate * 100) }}%</td>
+      </tr>
+      {% endfor %}
+      {% if threshold_ladder_summary %}
+      <tr style="font-weight:600; border-top: 2px solid #2a2f3a;">
+        <td>average</td>
+        <td>&mdash;</td>
+        <td>{{ "%.4f"|format(threshold_ladder_summary.avg_precision) }}</td>
+        <td>{{ "%.4f"|format(threshold_ladder_summary.avg_recall) }}</td>
+        <td>{{ "%.4f"|format(threshold_ladder_summary.avg_f1) }}</td>
+        <td>{{ "%.4f"|format(threshold_ladder_summary.avg_accuracy) }}</td>
+        <td>{{ "%.1f%%"|format(threshold_ladder_summary.avg_predicted_positive_rate * 100) }}</td>
+      </tr>
+      {% endif %}
+    </table>
+    <div class="chart">{{ chart_html.threshold_ladder | safe }}</div>
+  </section>
+  {% elif multi_threshold_ensemble and threshold_ladder and task_type == "multiclass" %}
+  <section>
+    <h2>Multi-Threshold Ensemble ({{ threshold_ladder | length }} confidence levels)</h2>
+    <p style="color:#9aa4b2; font-size:0.85rem;">
+      {{ threshold_ladder | length }} reject-thresholds on the top predicted class's probability were computed
+      from the same model — from most lenient (accepts almost every prediction) to strictest (only the most
+      confident predictions survive). <code>predict()</code> uses the objective-optimal reject threshold above
+      ({{ "%.2f"|format(reject_threshold) }}) to decide whether to return a class or <code>None</code> (too
+      uncertain), and reports a confidence score for each row: the fraction of these {{ threshold_ladder | length }}
+      levels that still accept the prediction (1.0 = confident even at the strictest level).
+    </p>
+    <table>
+      <tr>
+        <th>#</th><th>Threshold</th><th>Coverage</th><th>Accuracy (on accepted)</th><th>Accuracy (overall, rejects = wrong)</th><th>N accepted</th>
+      </tr>
+      {% for point in threshold_ladder %}
+      <tr>
+        <td>{{ loop.index }}{% if point.threshold == reject_threshold %} (closest to objective){% endif %}</td>
+        <td>{{ "%.3f"|format(point.threshold) }}</td>
+        <td>{{ "%.1f"|format(point.coverage * 100) }}%</td>
+        <td>{{ "%.4f"|format(point.accuracy_on_accepted) }}</td>
+        <td>{{ "%.4f"|format(point.accuracy_overall) }}</td>
+        <td>{{ point.n_accepted }}</td>
+      </tr>
+      {% endfor %}
+      {% if threshold_ladder_summary %}
+      <tr style="font-weight:600; border-top: 2px solid #2a2f3a;">
+        <td>average</td>
+        <td>&mdash;</td>
+        <td>{{ "%.1f%%"|format(threshold_ladder_summary.avg_coverage * 100) }}</td>
+        <td>{{ "%.4f"|format(threshold_ladder_summary.avg_accuracy_on_accepted) }}</td>
+        <td>{{ "%.4f"|format(threshold_ladder_summary.avg_accuracy_overall) }}</td>
+        <td>&mdash;</td>
+      </tr>
+      {% endif %}
+    </table>
+    <div class="chart">{{ chart_html.threshold_ladder | safe }}</div>
+  </section>
+  {% elif multi_threshold_ensemble and threshold_ladder and task_type == "multilabel" %}
+  <section>
+    <h2>Multi-Threshold Ensemble ({{ threshold_ladder[0] | length }} confidence levels per label)</h2>
+    <p style="color:#9aa4b2; font-size:0.85rem;">
+      Each label independently got its own {{ threshold_ladder[0] | length }}-point recall/precision threshold
+      ladder (same idea as binary, run once per label). <code>predict()</code> reports a confidence score per
+      label per row: the fraction of that label's ladder levels that agree with its predicted 0/1 value. The
+      chart and average below aggregate across all labels; full per-label detail is in <code>report.json</code>.
+    </p>
+    {% if threshold_ladder_summary %}
+    <table>
+      <tr><th>metric</th><th>average across all labels &amp; levels</th></tr>
+      <tr><td>precision</td><td>{{ "%.4f"|format(threshold_ladder_summary.avg_precision) }}</td></tr>
+      <tr><td>recall</td><td>{{ "%.4f"|format(threshold_ladder_summary.avg_recall) }}</td></tr>
+      <tr><td>f1</td><td>{{ "%.4f"|format(threshold_ladder_summary.avg_f1) }}</td></tr>
+      <tr><td>accuracy</td><td>{{ "%.4f"|format(threshold_ladder_summary.avg_accuracy) }}</td></tr>
+      <tr><td>predicted positive rate</td><td>{{ "%.1f%%"|format(threshold_ladder_summary.avg_predicted_positive_rate * 100) }}</td></tr>
+    </table>
+    {% endif %}
+    <div class="chart">{{ chart_html.threshold_ladder | safe }}</div>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>Evaluation Metrics (held-out test set)</h2>
+    <div class="chart">{{ chart_html.metrics | safe }}</div>
+  </section>
+
+  <section class="grid-2">
+    <div>
+      <h2>Speed</h2>
+      <div class="chart">{{ chart_html.timing | safe }}</div>
+    </div>
+    {% if chart_html.memory %}
+    <div>
+      <h2>Memory / RAM</h2>
+      <div class="chart">{{ chart_html.memory | safe }}</div>
+    </div>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Feature Importance</h2>
+    <div class="chart">{{ chart_html.feature_importance | safe }}</div>
+  </section>
+
+  {% if chart_html.shap_importance %}
+  <section>
+    <h2>SHAP Feature Importance</h2>
+    <div class="chart">{{ chart_html.shap_importance | safe }}</div>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>
+      {%- if task_type in ("binary", "multiclass") %} ROC Curve / Confusion Matrix
+      {%- elif task_type == "multilabel" %} Per-Label Accuracy
+      {%- elif task_type == "multioutput_regression" %} Per-Output RMSE
+      {%- else %} Predicted vs Actual
+      {%- endif %}
+    </h2>
+    <div class="chart">{{ chart_html.diagnostic | safe }}</div>
+  </section>
+
+  <section>
+    <h2>Run Details</h2>
+    <table>
+      <tr><th>Model size on disk</th><td>{{ "%.2f"|format(model_size_bytes/1024/1024) }} MB</td></tr>
+    </table>
+    {% if notes %}
+    <ul>
+      {% for note in notes %}<li>{{ note }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <footer>Generated by SmartTab — a smart decision engine for tabular machine learning.</footer>
+</body>
+</html>
