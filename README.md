@@ -4,6 +4,8 @@ SmartTab is a bounded multimodal AutoML library for **tabular data, raw text, im
 
 The final predictive learners are **CatBoost** and **LightGBM**. XGBoost remains an optional diversity candidate inside the ensemble engine and is never a core requirement.
 
+Full supp
+
 ## Design goals
 
 - One API for tabular, single-modality, and mixed-modality datasets.
@@ -55,6 +57,16 @@ production-grade tuning.
 and why it's built this way, for anyone who wants to look under the hood.
 
 ## Simplest APIs
+
+## Table Dataset (Best for this librray)
+```python
+import smarttab
+
+model = smarttab.fit(
+    'dataset.csv', #or pandas.open_csv('dataset.csv) (one DF)
+    ....
+)
+```
 
 ### Raw text
 
