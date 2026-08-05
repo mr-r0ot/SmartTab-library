@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: SmartTab
+message: "If you use SmartTab in research, cite this software release."
+type: software
+authors:
+  - name: mr-r0ot
+repository-code: "https://github.com/mr-r0ot/SmartTab-library"
+url: "https://github.com/mr-r0ot/SmartTab-library"
+license: MIT
+version: 3.1.0
+date-released: 2026-07-29
+keywords:
+  - multimodal AutoML
+  - tabular machine learning
+  - text classification
+  - computer vision
+  - audio classification
+  - video classification
+  - CatBoost
+  - LightGBM

@@ -1,0 +1,22 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include SECURITY.md
+include CONTRIBUTING.md
+include RELEASING.md
+recursive-include tests *.py
+recursive-include examples *.py
+include CITATION.cff
+include ENSEMBLE_DESIGN.md
+include MULTIMODAL_DESIGN.md
+include BENCHMARKS.md
+include DATASCIENCE_DESIGN.md
+include VALIDATION.md
+include documents.md
+include HowItWorks.md
+recursive-include src/smarttab/reporting/templates *.j2
+prune smarttab_reports
+prune catboost_info
+prune .pytest_cache
+global-exclude __pycache__ *.py[cod] .DS_Store
+recursive-include benchmarks *.py *.json *.csv

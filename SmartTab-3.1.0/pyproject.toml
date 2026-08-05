@@ -1,0 +1,180 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smarttab"
+version = "3.1.0"
+description = "Data-quality-aware bounded multimodal AutoML for tabular, text, image, audio, and video data using CatBoost and LightGBM."
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "mr-r0ot" }]
+keywords = [
+  "machine-learning",
+  "tabular-data",
+  "multimodal",
+  "text-classification",
+  "computer-vision",
+  "audio-classification",
+  "video-classification",
+  "automl",
+  "catboost",
+  "lightgbm",
+  "ensemble-learning",
+  "data-quality",
+  "data-drift",
+  "conformal-prediction",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "pillow>=10.0",
+  "pandas>=2.0",
+  "scikit-learn>=1.3",
+  "catboost>=1.2",
+  "lightgbm>=4.0",
+  "optuna>=3.5",
+  "psutil>=5.9",
+  "jinja2>=3.1",
+  "plotly>=5.20",
+  "joblib>=1.3",
+  "tqdm>=4.65",
+  "threadpoolctl>=3.2",
+]
+
+[project.optional-dependencies]
+ensemble-xgb = ["xgboost>=2.0"]
+shap = ["shap>=0.44"]
+report-static = ["kaleido>=1.0"]
+gpu = ["nvidia-ml-py>=12.0"]
+excel = ["openpyxl>=3.1"]
+parquet = ["pyarrow>=14.0"]
+text-deep = [
+  "torch>=2.2",
+  "sentence-transformers>=3.0",
+]
+vision-deep = [
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "timm>=1.0",
+]
+audio = [
+  "soundfile>=0.12",
+]
+audio-deep = [
+  "soundfile>=0.12",
+  "torch>=2.2",
+  "torchaudio>=2.2",
+]
+video = [
+  "opencv-python-headless>=4.8",
+]
+multimodal = [
+  "soundfile>=0.12",
+  "opencv-python-headless>=4.8",
+]
+multimodal-deep = [
+  "soundfile>=0.12",
+  "opencv-python-headless>=4.8",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "torchaudio>=2.2",
+  "timm>=1.0",
+  "sentence-transformers>=3.0",
+]
+all = [
+  "xgboost>=2.0",
+  "shap>=0.44",
+  "kaleido>=1.0",
+  "nvidia-ml-py>=12.0",
+  "openpyxl>=3.1",
+  "pyarrow>=14.0",
+  "soundfile>=0.12",
+  "opencv-python-headless>=4.8",
+]
+deep = [
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "torchaudio>=2.2",
+  "timm>=1.0",
+  "sentence-transformers>=3.0",
+]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "build>=1.2",
+  "twine>=5.0",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "types-psutil>=5.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/mr-r0ot/SmartTab-library"
+Documentation = "https://github.com/mr-r0ot/SmartTab-library#readme"
+Repository = "https://github.com/mr-r0ot/SmartTab-library"
+Issues = "https://github.com/mr-r0ot/SmartTab-library/issues"
+Changelog = "https://github.com/mr-r0ot/SmartTab-library/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["smarttab*"]
+
+[tool.setuptools.package-data]
+"smarttab.reporting" = ["templates/*.j2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+  "slow: computationally expensive integration tests",
+  "optional: requires an optional dependency",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["smarttab"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 75
+
+[tool.ruff]
+target-version = "py310"
+line-length = 110
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.mypy]
+python_version = "3.10"
+packages = ["smarttab"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+no_implicit_optional = true

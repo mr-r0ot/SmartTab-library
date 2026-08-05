@@ -1,0 +1,7 @@
+case,dataset,rows,final_model_features,model_name,primary_metric,primary_metric_value,fit_seconds,inference_samples_per_second,peak_rss_delta_mb,bundle_size_mb,data_quality_score
+tabular,Breast Cancer Wisconsin Diagnostic + controlled quality defects,569,36,lightgbm,roc_auc,0.9907407407407407,0.7120924170003491,19204.31299849757,38.60546875,0.047942161560058594,86.5
+text,Installed scikit-learn vs pandas source-code snippets,420,160,lightgbm,roc_auc,0.9886621315192743,2.527396625000165,370.15971097736264,49.6796875,0.5601997375488281,100.0
+image,Optical Recognition of Handwritten Digits (classes 0-4),800,87,lightgbm,f1_macro,0.9319522905420052,2.464060772999801,630.6225702373256,42.03125,0.3797607421875,100.0
+audio,Deterministic procedural acoustic events,360,123,lightgbm,f1_macro,1.0,2.033701092999763,301.5670822855747,43.37890625,0.20336341857910156,100.0
+video,Moving Digits (digits 0-3 with class-dependent motion),180,149,lightgbm,f1_macro,1.0,6.525186272000155,56.27281254098785,40.65625,0.1540060043334961,100.0
+mixed,Mixed Digits (tabular + text + image + audio),240,221,catboost,f1_macro,0.9772256728778468,4.142014241000197,183.66763362982823,127.3359375,0.34113216400146484,100.0
