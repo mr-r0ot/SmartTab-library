@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>SmartTab Report — {{ model_name }}</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 2rem; max-width: 1100px; margin-inline: auto; background: #0b0e14; color: #e6e6e6; }
+  h1 { font-size: 1.6rem; margin-bottom: 0.2rem; }
+  .subtitle { color: #9aa4b2; margin-bottom: 2rem; }
+  section { margin-bottom: 2.5rem; }
+  h2 { font-size: 1.15rem; border-bottom: 1px solid #2a2f3a; padding-bottom: 0.4rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
+  th, td { text-align: left; padding: 0.4rem 0.7rem; border-bottom: 1px solid #1e232c; font-size: 0.92rem; }
+  th { color: #9aa4b2; font-weight: 600; }
+  .badge { display: inline-block; background: #1e293b; color: #93c5fd; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; margin-right: 0.4rem; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+  .warn { color: #fbbf24; }
+  .chart { margin-top: 1rem; }
+  footer { color: #6b7280; font-size: 0.8rem; margin-top: 3rem; }
+  ul { margin: 0.4rem 0 0 1.2rem; padding: 0; }
+  code { background: #1e232c; padding: 0.1rem 0.4rem; border-radius: 4px; }
+  .small { color: #9aa4b2; font-size: 0.84rem; }
+  .scroll { overflow-x: auto; max-height: 32rem; }
+  .ok { color: #86efac; }
+  .critical { color: #fca5a5; }
+</style>
+<script type="text/javascript">{{ plotlyjs_library | safe }}</script>
+</head>
+<body>
+  <h1>SmartTab Report</h1>
+  <div class="subtitle">Generated {{ generated_at }} · smarttab v{{ library_version }} · also saved as <code>report.json</code></div>
+
+  <section>
+    <h2>Summary</h2>
+    <span class="badge">task: {{ task_type }}</span>
+    <span class="badge">model: {{ model_name }}</span>
+    <span class="badge">samples: {{ dataset_profile.n_samples }}</span>
+    <span class="badge">features: {{ dataset_profile.n_features }} &rarr; {{ n_final_features }}</span>
+    {% if task_type == "binary" %}<span class="badge">decision threshold: {{ "%.2f"|format(decision_threshold) }} (objective: {{ objective }})</span>{% endif %}
+    {% if task_type == "multilabel" and per_label_thresholds %}<span class="badge">per-label thresholds (objective: {{ objective }})</span>{% endif %}
+    {% if dataset_profile.is_imbalanced %}<span class="badge warn">imbalanced target</span>{% endif %}
+  </section>
+
+  {% if static_export.status not in ("ok", "disabled") %}
+  <section>
+    <p class="warn">Static PNG export status: {{ static_export.status }}. Interactive HTML charts remain available. {{ static_export.errors }}</p>
+  </section>
+  {% endif %}
+
+  <section class="grid-2">
+    <div>
+      <h2>Dataset Summary</h2>
+      <table>
+        <tr><th>Target column</th><td>{{ dataset_profile.target_column }}</td></tr>
+        <tr><th>Task type</th><td>{{ task_type }}</td></tr>
+        <tr><th>Samples</th><td>{{ dataset_profile.n_samples }}</td></tr>
+        <tr><th>Raw features</th><td>{{ dataset_profile.n_features }}</td></tr>
+        <tr><th>Duplicate rows</th><td>{{ dataset_profile.duplicate_row_count }}</td></tr>
+        <tr><th>Constant columns dropped</th><td>{{ dataset_profile.constant_columns | length }}</td></tr>
+        <tr><th>ID-like columns dropped</th><td>{{ dataset_profile.id_like_columns | length }}</td></tr>
+        <tr><th>Datetime columns</th><td>{{ dataset_profile.datetime_columns | length }}</td></tr>
+        <tr><th>Text columns</th><td>{{ dataset_profile.text_columns | length }}</td></tr>
+        <tr><th>Image columns</th><td>{{ dataset_profile.image_columns | length }}</td></tr>
+        <tr><th>Audio columns</th><td>{{ dataset_profile.audio_columns | length }}</td></tr>
+        <tr><th>Video columns</th><td>{{ dataset_profile.video_columns | length }}</td></tr>
+        <tr><th>Columns with missing values</th><td>{{ dataset_profile.missing_report | length }}</td></tr>
+        {% if dataset_profile.class_distribution %}
+        <tr><th>Class distribution</th><td>{{ dataset_profile.class_distribution }}</td></tr>
+        <tr><th>Imbalance ratio (minority/majority)</th><td>{{ "%.3f"|format(dataset_profile.class_imbalance_ratio) }}</td></tr>
+        {% endif %}
+      </table>
+      {% if dataset_profile.potential_leakage_columns %}
+      <p class="warn">Potential leakage columns flagged: {{ dataset_profile.potential_leakage_columns | join(", ") }}</p>
+      {% endif %}
+      {% if dataset_profile.outlier_columns %}
+      <p class="warn">Outliers detected in {{ dataset_profile.outlier_columns | length }} numeric column(s) (not removed by default).</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <h2>Hardware Summary</h2>
+      <table>
+        <tr><th>CPU</th><td>{{ hardware_profile.cpu.brand }}</td></tr>
+        <tr><th>Cores (physical/logical)</th><td>{{ hardware_profile.cpu.physical_cores }} / {{ hardware_profile.cpu.logical_cores }}</td></tr>
+        <tr><th>RAM (total / available)</th><td>{{ "%.1f"|format(hardware_profile.ram.total_mb/1024) }} GB / {{ "%.1f"|format(hardware_profile.ram.available_mb/1024) }} GB</td></tr>
+        <tr><th>GPU</th><td>{{ hardware_profile.gpu.name if hardware_profile.gpu.available else "not available" }}</td></tr>
+        <tr><th>Threads used</th><td>{{ resource_plan.cpu_threads }}</td></tr>
+        <tr><th>GPU used</th><td>{{ resource_plan.use_gpu }}</td></tr>
+        <tr><th>RAM estimator budget</th><td>{{ "%.0f"|format(resource_plan.memory_budget_mb) }} MB</td></tr>
+        {% if resource_plan.gpu_memory_budget_mb %}<tr><th>GPU memory budget</th><td>{{ "%.0f"|format(resource_plan.gpu_memory_budget_mb) }} MB</td></tr>{% endif %}
+      </table>
+    </div>
+  </section>
+
+  {% if data_quality_report %}
+  <section>
+    <h2>Data Quality & Data Science Audit</h2>
+    <span class="badge">quality score: {{ "%.1f"|format(data_quality_report.quality_score) }}/100</span>
+    <span class="badge">errors: {{ data_quality_report.severity_counts.error }}</span>
+    <span class="badge">warnings: {{ data_quality_report.severity_counts.warning }}</span>
+    <div class="grid-2" style="margin-top:1rem;">
+      <div class="chart">{{ chart_html.data_quality | safe }}</div>
+      {% if chart_html.missingness %}<div class="chart">{{ chart_html.missingness | safe }}</div>{% endif %}
+    </div>
+    {% if data_quality_report.issues %}
+    <div class="scroll">
+    <table>
+      <tr><th>Severity</th><th>Issue</th><th>Columns</th><th>Count/rate</th><th>Recommended action</th></tr>
+      {% for issue in data_quality_report.issues %}
+      <tr>
+        <td class="{{ 'critical' if issue.severity == 'error' else ('warn' if issue.severity == 'warning' else '') }}">{{ issue.severity }}</td>
+        <td>{{ issue.message }}</td>
+        <td>{{ issue.columns | join(", ") }}</td>
+        <td>{% if issue.count %}{{ issue.count }}{% endif %}{% if issue.fraction is not none %} ({{ "%.2f%%"|format(issue.fraction * 100) }}){% endif %}</td>
+        <td>{{ issue.recommended_action or "" }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% endif %}
+
+    {% if data_quality_report.recommendations %}
+    <h3>Recommended actions</h3>
+    <ul>{% for recommendation in data_quality_report.recommendations %}<li>{{ recommendation }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    {% if data_quality_report.target_summary %}
+    <h3>Target audit</h3>
+    <div class="scroll"><table>
+      <tr><th>Target</th><th>Missing rate</th><th>Unique values</th><th>Top distribution</th></tr>
+      {% for target, summary in data_quality_report.target_summary.items() %}
+      <tr><td>{{ target }}</td><td>{{ "%.2f%%"|format(summary.missing_rate * 100) }}</td><td>{{ summary.unique }}</td><td>{{ summary.distribution }}</td></tr>
+      {% endfor %}
+    </table></div>
+    {% endif %}
+
+    {% if data_quality_report.numeric_summary %}
+    <h3>Numeric distribution audit</h3>
+    <div class="scroll"><table>
+      <tr><th>Column</th><th>Finite</th><th>Mean</th><th>Std</th><th>Median</th><th>IQR</th><th>Skew</th><th>IQR outliers</th><th>Zero rate</th></tr>
+      {% for column, summary in data_quality_report.numeric_summary.items() %}{% if loop.index <= 40 %}
+      <tr>
+        <td>{{ column }}</td><td>{{ "%.2f%%"|format(summary.finite_rate * 100) }}</td>
+        <td>{{ "%.5g"|format(summary.mean) if summary.mean is defined else "" }}</td>
+        <td>{{ "%.5g"|format(summary.std) if summary.std is defined else "" }}</td>
+        <td>{{ "%.5g"|format(summary.median) if summary.median is defined else "" }}</td>
+        <td>{% if summary.q25 is defined and summary.q75 is defined %}{{ "%.5g"|format(summary.q25) }} – {{ "%.5g"|format(summary.q75) }}{% endif %}</td>
+        <td>{{ "%.3f"|format(summary.skew) if summary.skew is defined else "" }}</td>
+        <td>{{ "%.2f%%"|format(summary.outlier_rate_iqr * 100) if summary.outlier_rate_iqr is defined else "" }}</td>
+        <td>{{ "%.2f%%"|format(summary.zero_rate * 100) if summary.zero_rate is defined else "" }}</td>
+      </tr>
+      {% endif %}{% endfor %}
+    </table></div>
+    {% if data_quality_report.numeric_summary | length > 40 %}<p class="small">The first 40 numeric columns are shown; all columns are available in report.json.</p>{% endif %}
+    {% endif %}
+
+    {% if data_quality_report.categorical_summary %}
+    <h3>Categorical distribution audit</h3>
+    <div class="scroll"><table>
+      <tr><th>Column</th><th>Cardinality</th><th>Cardinality/rows</th><th>Rare-row rate</th><th>Singleton-category rate</th><th>Top-category rate</th></tr>
+      {% for column, summary in data_quality_report.categorical_summary.items() %}{% if loop.index <= 40 %}
+      <tr><td>{{ column }}</td><td>{{ summary.cardinality | int }}</td><td>{{ "%.3f"|format(summary.cardinality_ratio) }}</td><td>{{ "%.2f%%"|format(summary.rare_row_rate * 100) }}</td><td>{{ "%.2f%%"|format(summary.singleton_category_rate * 100) }}</td><td>{{ "%.2f%%"|format(summary.top_category_rate * 100) }}</td></tr>
+      {% endif %}{% endfor %}
+    </table></div>
+    {% endif %}
+
+    {% if data_quality_report.modality_summary %}
+    <h3>Raw modality input audit</h3>
+    <div class="scroll"><table>
+      <tr><th>Column</th><th>Missing/empty</th><th>Sampled values</th><th>Unreadable paths</th><th>Additional statistics</th></tr>
+      {% for column, summary in data_quality_report.modality_summary.items() %}
+      <tr><td>{{ column }}</td><td>{{ "%.2f%%"|format(summary.missing_or_empty_rate * 100) }}</td><td>{{ summary.sampled_values | int }}</td><td>{{ "%.2f%%"|format(summary.unreadable_path_rate * 100) }}</td><td>{{ summary }}</td></tr>
+      {% endfor %}
+    </table></div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if cleaning_report %}
+  <section>
+    <h2>Cleaning & Preprocessing Audit</h2>
+    <table>
+      <tr><th>Feature count before / after</th><td>{{ cleaning_report.before_feature_count }} / {{ cleaning_report.after_feature_count }}</td></tr>
+      <tr><th>Model feature budget</th><td>{{ cleaning_report.model_feature_budget }}</td></tr>
+      <tr><th>Missing values before / after</th><td>{{ cleaning_report.before_missing_values }} / {{ cleaning_report.after_missing_values }}</td></tr>
+      <tr><th>Numeric imputation</th><td>{{ cleaning_report.numeric_imputation }}</td></tr>
+      <tr><th>Numeric columns imputed</th><td>{{ cleaning_report.imputed_numeric_columns | length }}</td></tr>
+      <tr><th>Missing indicators added</th><td>{{ cleaning_report.missing_indicator_columns | length }}</td></tr>
+      <tr><th>Rare categories grouped</th><td>{{ cleaning_report.rare_categories_grouped }}</td></tr>
+      <tr><th>Winsorized numeric columns</th><td>{{ cleaning_report.winsorized_columns }}</td></tr>
+      <tr><th>Log-transformed columns</th><td>{{ cleaning_report.log_transformed_columns }}</td></tr>
+      <tr><th>Yeo-Johnson columns</th><td>{{ cleaning_report.power_transformed_columns }}</td></tr>
+      <tr><th>Datetime sources expanded</th><td>{{ cleaning_report.datetime_columns_expanded }}</td></tr>
+      <tr><th>Dropped constants</th><td>{{ cleaning_report.dropped_constant_columns }}</td></tr>
+      <tr><th>Dropped identifiers</th><td>{{ cleaning_report.dropped_id_columns }}</td></tr>
+      <tr><th>Dropped leakage columns</th><td>{{ cleaning_report.dropped_leakage_columns }}</td></tr>
+      <tr><th>Warned leakage columns</th><td>{{ cleaning_report.warned_leakage_columns }}</td></tr>
+      <tr><th>Dropped duplicate/near-duplicate columns</th><td>{{ cleaning_report.dropped_duplicate_columns + cleaning_report.dropped_near_duplicate_numeric_columns }}</td></tr>
+      <tr><th>Dropped by global feature budget</th><td>{{ cleaning_report.dropped_by_feature_budget | length }}</td></tr>
+      <tr><th>Multimodal features retained</th><td>{{ cleaning_report.multimodal_feature_count }}</td></tr>
+    </table>
+    {% if cleaning_report.missing_indicator_columns %}<p class="small"><strong>Missing indicators:</strong> {{ cleaning_report.missing_indicator_columns | join(", ") }}</p>{% endif %}
+    {% if cleaning_report.imputed_numeric_columns %}<p class="small"><strong>Imputed numeric columns:</strong> {{ cleaning_report.imputed_numeric_columns | join(", ") }}</p>{% endif %}
+    {% if cleaning_report.dropped_by_feature_budget %}<p class="small"><strong>Feature-budget removals:</strong> {{ cleaning_report.dropped_by_feature_budget | join(", ") }}</p>{% endif %}
+    {% if cleaning_report.feature_selection_scores %}
+    <h3>Supervised feature-budget ranking</h3>
+    <div class="scroll"><table><tr><th>Feature</th><th>Selection score</th></tr>
+      {% for feature, score in cleaning_report.feature_selection_scores | dictsort(false, 'value', true) %}{% if loop.index <= 40 %}<tr><td>{{ feature }}</td><td>{{ "%.6g"|format(score) }}</td></tr>{% endif %}{% endfor %}
+    </table></div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if uncertainty_info %}
+  <section>
+    <h2>Calibration, Conformal Uncertainty & Monitoring</h2>
+    <table>
+      <tr><th>Probability calibration</th><td>{% if uncertainty_info.calibration %}{{ uncertainty_info.calibration.method }} on {{ uncertainty_info.calibration.n_samples }} calibration rows ({{ uncertainty_info.calibration.n_outputs }} output(s)){% else %}disabled/unavailable{% endif %}</td></tr>
+      <tr><th>Conformal prediction</th><td>{{ uncertainty_info.conformal }}</td></tr>
+      <tr><th>OOD detection</th><td>{{ uncertainty_info.ood }}</td></tr>
+      <tr><th>Drift reference stored</th><td>{{ uncertainty_info.drift_monitoring }}</td></tr>
+      <tr><th>Missing-modality augmentation</th><td>{{ modality_dropout_info or {} }}</td></tr>
+    </table>
+    {% if metrics.expected_calibration_error is defined %}<span class="badge">ECE: {{ "%.4f"|format(metrics.expected_calibration_error) }}</span>{% endif %}
+    {% if metrics.brier_score is defined %}<span class="badge">Brier: {{ "%.4f"|format(metrics.brier_score) }}</span>{% endif %}
+    {% if metrics.conformal_coverage is defined %}<span class="badge">conformal coverage: {{ "%.4f"|format(metrics.conformal_coverage) }}</span>{% endif %}
+    {% if metrics.conformal_set_size_mean is defined %}<span class="badge">mean set size: {{ "%.3f"|format(metrics.conformal_set_size_mean) }}</span>{% endif %}
+    {% if metrics.ood_flag_rate is defined %}<span class="badge">OOD flag rate: {{ "%.2f%%"|format(metrics.ood_flag_rate * 100) }}</span>{% endif %}
+    <p class="small">Conformal coverage is a finite-sample empirical guarantee under exchangeability, not immunity to severe production drift. OOD and drift scores are diagnostic signals and should be interpreted alongside domain validation and production monitoring.</p>
+  </section>
+  {% endif %}
+
+  {% if evaluation_drift_report or evaluation_quality_report %}
+  <section>
+    <h2>Holdout Data Health</h2>
+    {% if evaluation_drift_report %}
+    <span class="badge">drift: {{ evaluation_drift_report.severity }}</span>
+    <span class="badge">drift score: {{ "%.3f"|format(evaluation_drift_report.overall_score) }}</span>
+    <span class="badge">drifted raw columns: {{ evaluation_drift_report.drifted_raw_columns | length }}</span>
+    <span class="badge">drifted transformed features: {{ evaluation_drift_report.drifted_feature_count }}</span>
+    <div class="chart">{{ chart_html.drift | safe }}</div>
+    {% if evaluation_drift_report.raw_columns %}
+    <div class="scroll"><table><tr><th>Raw column</th><th>Severity</th><th>Score</th><th>PSI/JS</th><th>Missing shift</th><th>Location shift</th></tr>
+      {% for column, result in evaluation_drift_report.raw_columns.items() %}{% if result.severity != 'ok' or loop.index <= 15 %}
+      <tr><td>{{ column }}</td><td>{{ result.severity }}</td><td>{{ "%.4f"|format(result.score) if result.score is defined else "" }}</td><td>{{ "%.4f"|format(result.psi) if result.psi is defined else ("%.4f"|format(result.jensen_shannon) if result.jensen_shannon is defined else "") }}</td><td>{{ "%.4f"|format(result.missing_rate_shift) if result.missing_rate_shift is defined else "" }}</td><td>{{ "%.4f"|format(result.median_shift_iqr) if result.median_shift_iqr is defined else "" }}</td></tr>
+      {% endif %}{% endfor %}
+    </table></div>
+    {% endif %}
+    {% endif %}
+    {% if evaluation_quality_report %}
+    <table>
+      <tr><th>Holdout quality score</th><td>{{ "%.1f"|format(evaluation_quality_report.quality_score) }}/100</td></tr>
+      <tr><th>Holdout quality findings</th><td>{{ evaluation_quality_report.severity_counts }}</td></tr>
+      <tr><th>Holdout missingness q90</th><td>{{ evaluation_quality_report.row_missing_quantiles.q90 }}</td></tr>
+    </table>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if multimodal_info and multimodal_info.modalities %}
+  <section>
+    <h2>Multimodal Feature Space</h2>
+    <table>
+      <tr><th>Detected/declared modalities</th><td>{{ multimodal_info.modalities }}</td></tr>
+      <tr><th>Generated modality features</th><td>{{ multimodal_info.generated_features }}</td></tr>
+      <tr><th>Configured feature budget</th><td>{{ multimodal_info.feature_budget }}</td></tr>
+      <tr><th>Allocated feature dimensions</th><td>{{ multimodal_info.allocated_features }}</td></tr>
+      <tr><th>Generated by source column</th><td>{{ multimodal_info.generated_by_column }}</td></tr>
+      <tr><th>Backends requested / used</th><td>{{ multimodal_info.backend_requested }} / {{ multimodal_info.backend_used }}</td></tr>
+      <tr><th>Task-aware supervised adaptation</th><td>{{ multimodal_info.supervised_adaptation }}</td></tr>
+      <tr><th>Adapted features by source</th><td>{{ multimodal_info.adapted_features }}</td></tr>
+      <tr><th>Fusion strategy</th><td>{{ multimodal_info.fusion_strategy }}</td></tr>
+      <tr><th>Feature groups</th><td>{{ multimodal_info.feature_groups }}</td></tr>
+      <tr><th>Total model features</th><td>{{ multimodal_info.total_model_features }}</td></tr>
+    </table>
+    {% if multimodal_info.adapter_diagnostics %}
+    <h3>Supervised adapter diagnostics</h3>
+    <div class="scroll"><table><tr><th>Source</th><th>Diagnostics</th></tr>{% for source, diagnostics in multimodal_info.adapter_diagnostics.items() %}<tr><td>{{ source }}</td><td>{{ diagnostics }}</td></tr>{% endfor %}</table></div>
+    {% endif %}
+    {% if multimodal_info.errors %}<p class="warn"><strong>Extraction errors:</strong> {{ multimodal_info.errors }}</p>{% endif %}
+    {% if multimodal_info.notes %}<ul>{% for note in multimodal_info.notes %}<li>{{ note }}</li>{% endfor %}</ul>{% endif %}
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>Model & Hyperparameters</h2>
+    <table>
+      <tr><th>Model</th><td>{{ model_name }}</td></tr>
+      <tr><th>Primary optimization metric</th><td>{{ primary_metric }}</td></tr>
+      {% for key, value in best_params.items() %}
+      <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+      {% endfor %}
+    </table>
+    {% if task_type == "binary" %}
+    <p style="color:#9aa4b2; font-size:0.85rem; margin-top:0.75rem;">Decision threshold {{ "%.2f"|format(decision_threshold) }} was chosen by sweeping <strong>{{ objective }}</strong> on held-out data (instead of the default 0.5 cutoff).</p>
+    {% elif task_type == "multilabel" and per_label_thresholds %}
+    <p style="color:#9aa4b2; font-size:0.85rem; margin-top:0.75rem;">Each label got its own decision threshold, chosen by sweeping <strong>{{ objective }}</strong> independently per label on held-out data (instead of the default 0.5 cutoff for every label):</p>
+    <table style="margin-top:0.5rem;">
+      <tr><th>label</th><th>threshold</th></tr>
+      {% for label in (class_labels or range(per_label_thresholds | length)) %}
+      <tr><td>{{ label }}</td><td>{{ "%.3f"|format(per_label_thresholds[loop.index0]) }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+    {% if ensemble_info %}
+    <h2 style="margin-top:1.5rem;">Ensemble Details</h2>
+    <table>
+      <tr><th>Strategy chosen</th><td>{{ ensemble_info.strategy }}</td></tr>
+      <tr><th>Validation score ({{ primary_metric }})</th><td>{{ "%.4f"|format(ensemble_info.validation_score) }}</td></tr>
+      {% if ensemble_info.meta_model_name %}
+      <tr><th>Meta model</th><td>{{ ensemble_info.meta_model_name }}</td></tr>
+      {% endif %}
+      {% if ensemble_info.voting_weights %}
+      <tr><th>Optimized voting weights</th><td>{{ ensemble_info.voting_weights }}</td></tr>
+      {% endif %}
+    </table>
+
+    {% if ensemble_info.members %}
+    <h3 style="margin-top:1rem;">Retained members</h3>
+    <div style="overflow-x:auto;">
+    <table>
+      <tr>
+        <th>Alias</th><th>Algorithm</th><th>Specialization</th><th>OOF score</th>
+        <th>Seed</th><th>Trees</th><th>Train rows</th><th>Train time</th>
+        <th>Inference / 512 rows</th><th>Size (MB)</th><th>Feature subsampling</th>
+      </tr>
+      {% for member in ensemble_info.members %}
+      <tr>
+        <td>{{ member.alias }}</td>
+        <td>{{ member.algorithm }}</td>
+        <td>{{ member.optimize_metric }}</td>
+        <td>{% if member.oof_score is not none %}{{ "%.5f"|format(member.oof_score) }}{% endif %}</td>
+        <td>{{ member.random_seed }}</td>
+        <td>{{ member.n_estimators }}</td>
+        <td>{{ member.train_sample_size }}</td>
+        <td>{% if member.training_seconds is not none %}{{ "%.3f s"|format(member.training_seconds) }}{% endif %}</td>
+        <td>{% if member.inference_seconds_per_512_rows is not none %}{{ "%.4f s"|format(member.inference_seconds_per_512_rows) }}{% endif %}</td>
+        <td>{% if member.model_size_mb is not none %}{{ "%.3f"|format(member.model_size_mb) }}{% endif %}</td>
+        <td>{{ member.feature_subsampling }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% endif %}
+
+    {% if ensemble_info.candidates %}
+    <h3 style="margin-top:1rem;">Candidate audit</h3>
+    <div style="overflow-x:auto;">
+    <table>
+      <tr><th>Alias</th><th>Algorithm</th><th>Specialization</th><th>OOF score</th><th>Max |prediction corr|</th><th>Retained</th></tr>
+      {% for candidate in ensemble_info.candidates %}
+      <tr>
+        <td>{{ candidate.alias }}</td><td>{{ candidate.algorithm }}</td><td>{{ candidate.optimize_metric }}</td>
+        <td>{% if candidate.oof_score is not none %}{{ "%.5f"|format(candidate.oof_score) }}{% endif %}</td>
+        <td>{{ "%.4f"|format(candidate.max_prediction_correlation) }}</td>
+        <td>{{ candidate.retained }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+    {% endif %}
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Evaluation Metrics (held-out test set)</h2>
+    <div class="chart">{{ chart_html.metrics | safe }}</div>
+  </section>
+
+  {% if chart_html.ensemble_candidates or chart_html.ensemble_diversity %}
+  <section class="grid-2">
+    {% if chart_html.ensemble_candidates %}
+    <div><h2>Candidate Performance</h2><div class="chart">{{ chart_html.ensemble_candidates | safe }}</div></div>
+    {% endif %}
+    {% if chart_html.ensemble_diversity %}
+    <div><h2>Prediction Diversity</h2><div class="chart">{{ chart_html.ensemble_diversity | safe }}</div></div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="grid-2">
+    <div>
+      <h2>Speed</h2>
+      <div class="chart">{{ chart_html.timing | safe }}</div>
+    </div>
+    {% if chart_html.memory %}
+    <div>
+      <h2>Memory / RAM</h2>
+      <div class="chart">{{ chart_html.memory | safe }}</div>
+    </div>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Feature Importance</h2>
+    <div class="chart">{{ chart_html.feature_importance | safe }}</div>
+  </section>
+
+  {% if chart_html.shap_importance %}
+  <section>
+    <h2>SHAP Feature Importance</h2>
+    <div class="chart">{{ chart_html.shap_importance | safe }}</div>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>
+      {%- if task_type in ("binary", "multiclass") %} ROC Curve / Confusion Matrix
+      {%- elif task_type == "multilabel" %} Per-Label Accuracy
+      {%- elif task_type == "multioutput_regression" %} Per-Output RMSE
+      {%- else %} Predicted vs Actual
+      {%- endif %}
+    </h2>
+    <div class="chart">{{ chart_html.diagnostic | safe }}</div>
+  </section>
+
+  <section>
+    <h2>Run Details</h2>
+    <table>
+      <tr><th>Model size on disk</th><td>{{ "%.2f"|format(model_size_bytes/1024/1024) }} MB</td></tr>
+    </table>
+    {% if notes %}
+    <ul>
+      {% for note in notes %}<li>{{ note }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <footer>Generated by SmartTab — a smart decision engine for tabular machine learning.</footer>
+</body>
+</html>

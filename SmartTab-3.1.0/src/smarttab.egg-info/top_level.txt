@@ -1,0 +1,2 @@
+smarttab
+smarttab_reports
